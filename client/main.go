@@ -1,29 +1,37 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"mqtt/shared"
 	"net"
+	"os"
 )
 
 func main() {
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to dial to port: ", err)
 	}
 
-	msg := shared.Message{SenderKey: "me", DeliveryKey: "you", Payload: "{\"id\": 1}"}
+	if os.Args[1] == "p" {
+		msg := shared.Message{Type: shared.Publish, ClientID: "me", Topic: "you", Payload: "{ \"id\": 1 }"}
+		shared.SendMessage(conn, msg)
+	} else if os.Args[1] == "s" {
+		msg := shared.Message{Type: shared.Subscribe, ClientID: "me", Topic: "you", Payload: ""}
+		shared.SendMessage(conn, msg)
+		shared.SendMessage(conn, shared.Message{Type: shared.EndMessage, ClientID: "", Topic: "", Payload: ""})
+		fmt.Println("Subscribing to topic and waiting for message...")
+		for {
+			msg, err := shared.DecodeMessage(conn)
+			if err != nil {
+				fmt.Println("Failed to decode message: ", err)
+				return
+			}
+			fmt.Println(msg)
+		}
+	} else if os.Args[1] == "t" {
 
-	str, err := json.Marshal(msg)
-
-	if err != nil {
-		fmt.Println("Failed to marshal: ", err)
-		return
+	} else {
+		fmt.Println("Program requires one argument: p for publish, s for subscribe")
 	}
-	conn.Write(str)
-	//fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
-	//conn.Write([]byte("Test"))
-	//time.Sleep(1 * time.Second)
-	//conn.Write([]byte("Test 2"))
 }
