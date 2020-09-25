@@ -28,7 +28,7 @@ func newSubscription(conn net.Conn, clientID, topic string) Subscription {
 	return Subscription{Topic: topic, Clients: []Client{Client{ClientID: clientID, Connection: conn}}}
 }
 
-func handleMessage(conn net.Conn, subs []Subscription) error {
+func handleMessage(conn net.Conn, subs *[]Subscription) error {
 	msg, err := shared.DecodeMessage(conn)
 	if err != nil {
 		fmt.Println("Failed to decode message: ", err)
@@ -38,8 +38,10 @@ func handleMessage(conn net.Conn, subs []Subscription) error {
 	switch msg.Type {
 	case shared.Publish:
 		fmt.Println("Publishing message.")
-		for _, s := range subs {
+		fmt.Println(subs)
+		for _, s := range *subs {
 			if s.Topic == msg.Topic {
+				fmt.Println("Found subscription.")
 				for _, c := range s.Clients {
 					err := shared.SendMessage(c.Connection, msg)
 					if err != nil {
@@ -52,15 +54,16 @@ func handleMessage(conn net.Conn, subs []Subscription) error {
 	case shared.Subscribe:
 		fmt.Println("Subscribed client: ", msg.ClientID, conn)
 		found := false
-		for i := range subs {
-			if subs[i].Topic == msg.Topic {
-				subs[i].Clients = append(subs[i].Clients, Client{ClientID: msg.ClientID, Connection: conn})
+		for i := range *subs {
+			if (*subs)[i].Topic == msg.Topic {
+				(*subs)[i].Clients = append((*subs)[i].Clients, Client{ClientID: msg.ClientID, Connection: conn})
 				found = true
 			}
 		}
 		if !found {
-			subs = append(subs, newSubscription(conn, msg.ClientID, msg.Topic))
+			*subs = append(*subs, newSubscription(conn, msg.ClientID, msg.Topic))
 		}
+		fmt.Println(subs)
 	}
 	return nil
 }
@@ -81,7 +84,6 @@ func main() {
 			fmt.Println("Failed accept connection: ", err)
 			return
 		}
-		go handleMessage(conn, subs)
-		fmt.Println(subs)
+		go handleMessage(conn, &subs)
 	}
 }

@@ -35,23 +35,19 @@ type Message struct {
 // DecodeMessage - attempts to decode a Message from a TCP connection.
 func DecodeMessage(conn net.Conn) (Message, error) {
 	var msg Message
-	for {
-		bytes := make([]byte, 2048)
-		n, err := conn.Read(bytes)
-		if err != nil && err != io.EOF {
-			return msg, err
-		}
+	bytes := make([]byte, 2048)
+	n, err := conn.Read(bytes)
+	if err != nil && err != io.EOF {
+		return msg, err
+	}
 
-		if err == io.EOF {
-			break
-		}
+	// Should be replaced with gob package in standard library
+	err = json.Unmarshal(bytes[0:n], &msg)
 
-		// Should be replaced with gob package in standard library
-		err = json.Unmarshal(bytes[0:n], &msg)
+	if err != nil {
+		fmt.Println(string(bytes))
 
-		if err != nil {
-			return msg, err
-		}
+		return msg, err
 	}
 	return msg, nil
 }
