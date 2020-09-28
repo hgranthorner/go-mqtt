@@ -29,41 +29,42 @@ func newSubscription(conn net.Conn, clientID, topic string) Subscription {
 }
 
 func handleMessage(conn net.Conn, subs *[]Subscription) error {
-	msg, err := shared.DecodeMessage(conn)
+	msgs, err := shared.DecodeMessage(conn)
 	if err != nil {
 		fmt.Println("Failed to decode message: ", err)
 		return err
 	}
 
-	switch msg.Type {
-	case shared.Publish:
-		fmt.Println("Publishing message.")
-		fmt.Println(subs)
-		for _, s := range *subs {
-			if s.Topic == msg.Topic {
-				fmt.Println("Found subscription.")
-				for _, c := range s.Clients {
-					err := shared.SendMessage(c.Connection, msg)
-					if err != nil {
-						fmt.Println("Failed to send message: ", err)
-						return err
+	for _, msg := range msgs {
+		switch msg.Type {
+		case shared.Publish:
+			fmt.Println("Publishing message.", msg)
+			for _, s := range *subs {
+				if s.Topic == msg.Topic {
+					fmt.Println("Found subscription.")
+					for _, c := range s.Clients {
+						err := shared.SendMessage(c.Connection, msg)
+						if err != nil {
+							fmt.Println("Failed to send message: ", err)
+							return err
+						}
 					}
 				}
 			}
-		}
-	case shared.Subscribe:
-		fmt.Println("Subscribed client: ", msg.ClientID, conn)
-		found := false
-		for i := range *subs {
-			if (*subs)[i].Topic == msg.Topic {
-				(*subs)[i].Clients = append((*subs)[i].Clients, Client{ClientID: msg.ClientID, Connection: conn})
-				found = true
+		case shared.Subscribe:
+			fmt.Println("Subscribed client: ", msg.ClientID, conn)
+			found := false
+			for i := range *subs {
+				if (*subs)[i].Topic == msg.Topic {
+					(*subs)[i].Clients = append((*subs)[i].Clients, Client{ClientID: msg.ClientID, Connection: conn})
+					found = true
+				}
 			}
+			if !found {
+				*subs = append(*subs, newSubscription(conn, msg.ClientID, msg.Topic))
+			}
+			fmt.Println(subs)
 		}
-		if !found {
-			*subs = append(*subs, newSubscription(conn, msg.ClientID, msg.Topic))
-		}
-		fmt.Println(subs)
 	}
 	return nil
 }
@@ -74,7 +75,7 @@ func main() {
 		fmt.Println("Error: ", err)
 	}
 
-	subs := []Subscription{}
+	var subs []Subscription
 
 	fmt.Println("Successfully created tcp listener.")
 	for {

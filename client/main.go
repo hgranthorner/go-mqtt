@@ -16,6 +16,8 @@ func main() {
 	if os.Args[1] == "p" {
 		msg := shared.Message{Type: shared.Publish, ClientID: "me", Topic: "you", Payload: "{ \"id\": 1 }"}
 		shared.SendMessage(conn, msg)
+		msg = shared.Message{Type: shared.Publish, ClientID: "me again", Topic: "you", Payload: "{ \"id\": 2 }"}
+		shared.SendMessage(conn, msg)
 	} else if os.Args[1] == "s" {
 		msg := shared.Message{Type: shared.Subscribe, ClientID: "me", Topic: "you", Payload: ""}
 		shared.SendMessage(conn, msg)

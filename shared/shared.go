@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,11 +18,10 @@ const (
 	// Subscribe - indicates that the client would like to be notified of messages on a certain topic.
 	// The Payload field should be nil in this case.
 	Subscribe
-	EndMessage
 )
 
 func (mt MessageType) String() string {
-	return [...]string{"Publish", "Subscribe", "EndMessage"}[mt]
+	return [...]string{"Publish", "Subscribe"}[mt]
 }
 
 // Message - contains the sender's key, the deliverer's key, and a JSON serialized message.
@@ -33,23 +33,38 @@ type Message struct {
 }
 
 // DecodeMessage - attempts to decode a Message from a TCP connection.
-func DecodeMessage(conn net.Conn) (Message, error) {
+func DecodeMessage(conn net.Conn) ([]Message, error) {
 	var msg Message
+	msgs := []Message{}
+
 	bytes := make([]byte, 2048)
-	n, err := conn.Read(bytes)
+	count, err := conn.Read(bytes)
 	if err != nil && err != io.EOF {
-		return msg, err
+		return msgs, err
 	}
 
-	// Should be replaced with gob package in standard library
-	err = json.Unmarshal(bytes[0:n], &msg)
+	start := 0
+	total := 0
+	for {
+		start = total
+		size, _ := binary.Varint(bytes[start : start+32])
+		start += 32
 
-	if err != nil {
-		fmt.Println(string(bytes))
+		// Should be replaced with gob package in standard library
+		err = json.Unmarshal(bytes[start:(start+int(size))], &msg)
+		total = start + int(size)
 
-		return msg, err
+		if err != nil {
+			fmt.Println(string(bytes[32:(32 + size)]))
+
+			return msgs, err
+		}
+		msgs = append(msgs, msg)
+		if total >= count {
+			break
+		}
 	}
-	return msg, nil
+	return msgs, nil
 }
 
 // SendMessage - send a Message over a given Conn.
@@ -61,6 +76,14 @@ func SendMessage(conn net.Conn, msg Message) error {
 		fmt.Println("Failed to marshal: ", err)
 		return err
 	}
+	bytes := make([]byte, 32)
+
+	binary.PutVarint(bytes, int64(len(str)))
+	size, _ := binary.Varint(bytes)
+	fmt.Println(size)
+
+	_, err = conn.Write(bytes)
+
 	_, err = conn.Write(str)
 	if err != nil {
 		fmt.Println("Failed to write to TCP: ", err)
